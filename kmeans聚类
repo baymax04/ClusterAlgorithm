@@ -1,0 +1,275 @@
+K 均值算法，应该是聚类算法中最为基础但也最为重要的算法。其算法流程如下：
+ * 随机的取 k 个点作为 k 个初始质心；
+ * 计算其他点到这个 k 个质心的距离；
+ * 如果某个点 p 离第 n 个质心的距离更近，则该点属于 cluster n，
+ *      并对其打标签，标注 point p.label=n，其中 n<=k；
+ * 计算同一 cluster 中，也就是相同 label 的点向量的平均值，作为新的质心；
+ * 迭代至所有质心都不变化为止，即算法结束。
+ 
+ 
+ 
+ package org.kmeans;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.PriorityQueue;
+import java.util.Queue;
+
+/**
+ * K 均值算法，应该是聚类算法中最为基础但也最为重要的算法。其算法流程如下：
+ * 随机的取 k 个点作为 k 个初始质心；
+ * 计算其他点到这个 k 个质心的距离；
+ * 如果某个点 p 离第 n 个质心的距离更近，则该点属于 cluster n，
+ *      并对其打标签，标注 point p.label=n，其中 n<=k；
+ * 计算同一 cluster 中，也就是相同 label 的点向量的平均值，作为新的质心；
+ * 迭代至所有质心都不变化为止，即算法结束。
+ * @author lily
+ *
+ */
+public class Kmeans {
+
+	private class Node{
+		int label;//label用来记录属于第几个cluster
+		double[] data;
+		public Node() {//构造函数初始化类
+			// TODO Auto-generated constructor stub
+			data=new double[100];
+		}
+	}
+	
+	private class NodeComparator{
+		Node nodeOne;
+		Node nodeTwo;
+		double distance;
+		//计算两点之间的距离
+		public void compute(){
+			double val=0;
+			for(int i=0;i<dimension;i++){
+				val+=Math.pow((this.nodeOne.data[i]-this.nodeTwo.data[i]),2);
+			}
+			this.distance=val;
+		}
+	}
+	
+	private ArrayList<Node> arrayList;
+	private ArrayList<Node> centerList;
+	private double averageDis;
+	private int dimension;
+	//排序  任意两点之间的距离、、、、从大到小排
+	private Queue<NodeComparator> fsQueue=new PriorityQueue<>(150,
+			new Comparator<NodeComparator>(){
+		public int compare(NodeComparator one,NodeComparator two){
+			if(one.distance<two.distance){
+				return 1;
+			}else if (one.distance>two.distance) {
+				return -1;
+			}else {
+				return 0;
+			}
+		}
+	});
+	
+	public void setKmeansInput(String path){
+		try {
+			//读取文件流
+			BufferedReader bReader=new BufferedReader(new FileReader(path));
+			String str;
+			String[] strArray;
+			arrayList=new ArrayList<Node>();
+			while((str=bReader.readLine())!=null){//读取行非空
+				strArray=str.split(",");//每行以“，”隔开
+				dimension=strArray.length;//维度
+				Node node=new Node();
+				
+				for(int i=0;i<dimension;++i){
+					node.data[i]=Double.parseDouble(strArray[i]);
+					//把字符数组中的元素，转换华为double型，赋给Node型的data数据
+				}
+				arrayList.add(node);
+				
+			}
+			bReader.close();
+		} catch (IOException e) {
+			// TODO: handle exception
+			e.getStackTrace();
+		}
+	}
+		
+		//计算k值
+		public void computeTheK(){
+			int cntTuple=0;//元组
+			for(int i=0;i<arrayList.size()-1;++i){
+				for(int j=i+1;j<arrayList.size();++j){
+					NodeComparator nodecomp=new NodeComparator();
+					nodecomp.nodeOne=new Node();
+					nodecomp.nodeTwo=new Node();
+					for(int k=0;k<dimension;++k){
+						nodecomp.nodeOne.data[k]=arrayList.get(i).data[k];
+						nodecomp.nodeTwo.data[k]=arrayList.get(j).data[k];
+					}
+					
+					nodecomp.compute();
+					averageDis+=nodecomp.distance;
+					fsQueue.add(nodecomp);
+					cntTuple++;
+				}
+			}
+			
+			averageDis/=cntTuple;//计算平均距离
+			chooseCenter(fsQueue);
+		}
+		
+		public double getDistance(Node one,Node two){
+			double val=0;
+			for(int i=0;i<dimension;++i){
+				val+=Math.pow((one.data[i]-two.data[i]),2);
+			}
+			return val;
+		}
+
+	private void chooseCenter(Queue<NodeComparator> queue) {
+		// TODO Auto-generated method stub
+		centerList=new ArrayList<>();
+		boolean flag=false;
+		while(!queue.isEmpty()){//队列非空时
+			boolean judgeOne=false;
+			boolean judgeTwo=false;
+			NodeComparator nc=fsQueue.poll();//出队
+			//如果接下来的元组，两点间的距离小于平均距离，则不继续迭代
+			if(nc.distance<averageDis){
+				break;
+			}
+
+			if(!flag){
+				//先加入所有点中距离最远的那两个点
+				centerList.add(nc.nodeOne);
+				centerList.add(nc.nodeTwo);
+				flag=true;
+			}else{
+				// 之后从之前已加入的最远的两个点开始，找离这两个点最远的点，
+				 // 如果距离大于所有点的平均距离，则认为找到了新的质心，否则不认定为质心
+				for(int i=0;i<centerList.size();++i){
+					Node nodeTest=centerList.get(i);
+					if(centerList.contains(nc.nodeOne)||getDistance(nodeTest, nc.nodeOne)<averageDis){
+						judgeOne=true;
+					}
+					if(centerList.contains(nc.nodeTwo)||getDistance(nodeTest, nc.nodeTwo)<averageDis){
+						judgeTwo=true;
+					}
+				}
+				
+				if(!judgeOne){
+					centerList.add(nc.nodeOne);
+				}
+				
+				if(!judgeTwo){
+					centerList.add(nc.nodeTwo);
+				}
+			}
+		}
+	}
+	
+	
+	//迭代
+	public void doIteration(ArrayList<Node> center){
+		int cnt=1;
+		int cntEnd=0;
+		int numLabel=center.size();//cluster？？？
+		
+		while(true){//迭代，直到所有质心都不变
+			boolean flag=false;
+			for(int i=0;i<arrayList.size();++i){
+				double dis=0x7ffffff;
+				cnt=1;
+				for(int j=0;j<center.size();++j){
+					Node node=center.get(j);
+					
+					if(getDistance(arrayList.get(i), node)<dis){
+						dis=getDistance(arrayList.get(i), node);
+						arrayList.get(i).label=cnt;
+					}
+					cnt++;
+				}
+			}
+			int j=0;
+			numLabel-=1;
+			while(j<numLabel){
+				int c=0;
+				Node node=new Node();
+				for(int i=0;i<arrayList.size();++i){
+					if(arrayList.get(i).label==j+1){
+						for(int k=0;k<dimension;k++){
+							node.data[k]+=arrayList.get(i).data[k];
+						}
+						c++;
+					}
+				}
+				DecimalFormat dFormat=new DecimalFormat("#.###");//保留三位小数
+				double[] dataList=new double[100];
+				for(int i=0;i<dimension;++i){
+					dataList[i]=Double.parseDouble(dFormat.format(node.data[i]/c));
+					if (dataList[i] != center.get(j).data[i]) {
+						 center.get(j).data[i] = dataList[i];
+						 flag = true;
+				    }
+				
+			     }
+			
+				if(!flag){//若所有的质心都不变，则跳出循环
+					cntEnd++;
+					if(cntEnd==numLabel){
+						break;
+					}
+				}
+				j++;
+		}
+			if(cntEnd ==numLabel){//若所有的质心都不变，则跳出循环
+				System.out.println("run kmeans successfully");
+				break;
+			}
+		}
+	}
+	
+	
+	
+	public void printKmeansResult(String path){
+		try {
+			PrintStream pStream=new PrintStream(path);
+			computeTheK();//计算k值
+			doIteration(centerList);//迭代
+//			System.out.println("Kmeans.printKmeansResult()");
+			System.out.println("有"+centerList.size()+"个聚类中心");
+			for(int i=0;i<arrayList.size();++i){
+				pStream.print("(");
+				for(int j=0;j<dimension;++j){
+					pStream.print(arrayList.get(i).data[j]+",");
+				}
+				pStream.print(arrayList.get(i).data[dimension-1]+")");
+				
+				pStream.println("属于聚类"+arrayList.get(i).label);
+			}
+			pStream.close();
+			System.out.println("请检查结果："+path);
+			
+		} catch (IOException e) {
+			// TODO: handle exception
+			e.printStackTrace();
+		}
+	}
+	
+	
+	public static void main(String[] args) {
+		Kmeans kmeans=new Kmeans();
+//		kmeans.setKmeansInput("f:/kmeans.txt");
+//		kmeans.printKmeansResult("f:/kmeansResult.txt");
+		
+		kmeans.setKmeansInput("src\\org\\kmeans\\kmeans.txt");
+		kmeans.printKmeansResult("src\\org\\kmeans\\kmeansResult.txt");
+	}
+}
+ 
